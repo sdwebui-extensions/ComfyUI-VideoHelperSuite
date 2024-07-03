@@ -25,10 +25,17 @@ from comfy.utils import ProgressBar
 folder_paths.folder_names_and_paths["VHS_video_formats"] = (
     [
         os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "video_formats"),
+        os.path.join(folder_paths.models_dir,  "video_formats")
     ],
     [".json"]
 )
 audio_extensions = ['mp3', 'mp4', 'wav', 'ogg']
+
+if not os.path.exists(os.path.join(folder_paths.models_dir,  "video_formats")):
+    try:
+        os.makedirs(os.path.join(folder_paths.models_dir,  "video_formats"), exist_ok=True)
+    except:
+        pass
 
 def gen_format_widgets(video_format):
     for k in video_format:
