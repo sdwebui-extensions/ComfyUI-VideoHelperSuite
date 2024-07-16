@@ -180,7 +180,7 @@ function applyVHSAudioLinksFix(nodeType, nodeData, audio_slot) {
             if (linfo.type == "VHS_AUDIO") {
                 this.outputs[audio_slot].type = "AUDIO"
                 let tnode = app.graph._nodes_by_id[linfo.target_id]
-                let inputDef = LiteGraph.registered_node_types[tnode.type].nodeData.input
+                let inputDef = LiteGraph.registered_node_types[tnode.type].nodeData?.input
                 let has_migrated = true
                 if (inputDef?.required) {
                     for (let k in inputDef.required) {
@@ -503,6 +503,14 @@ function addVideoPreview(nodeType) {
         element.addEventListener('contextmenu', (e)  => {
             e.preventDefault()
             return app.canvas._mousedown_callback(e)
+        }, true);
+        element.addEventListener('pointerdown', (e)  => {
+            e.preventDefault()
+            return app.canvas._mousedown_callback(e)
+        }, true);
+        element.addEventListener('mousewheel', (e)  => {
+            e.preventDefault()
+            return app.canvas._mousewheel_callback(e)
         }, true);
         previewWidget.value = {hidden: false, paused: false, params: {}}
         previewWidget.parentEl = document.createElement("div");
@@ -1264,5 +1272,17 @@ app.registerExtension({
             return res
         }
         app.graphToPrompt = graphToPrompt
-    }
+    },
+    async init() {
+        let e = app.extensions.filter((w) => w.name == 'UVR5.AudioPreviewer')
+        if (e.length) {
+            let orig = e[0].beforeRegisterNodeDef
+            e[0].beforeRegisterNodeDef = function(nodeType, nodeData, app) {
+                if(!nodeData?.name?.startsWith("VHS_")) {
+                    return orig.apply(this, arguments);
+                }
+            }
+        }
+
+    },
 });
