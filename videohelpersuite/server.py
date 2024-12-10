@@ -1,14 +1,19 @@
 import server
 import folder_paths
 import os
-import time
 import subprocess
 import re
-from .utils import is_url, get_sorted_dir_files_from_directory, ffmpeg_path, validate_sequence, is_safe_path, strip_path, try_download_video
+
+import asyncio
+
+from .utils import is_url, get_sorted_dir_files_from_directory, ffmpeg_path, \
+        validate_sequence, is_safe_path, strip_path, try_download_video, ENCODE_ARGS
 from comfy.k_diffusion.utils import FolderOfImages
+
 
 web = server.web
 
+@server.PromptServer.instance.routes.get("/vhs/viewvideo")
 @server.PromptServer.instance.routes.get("/viewvideo")
 async def view_video(request):
     query = request.rel_url.query
@@ -77,7 +82,7 @@ async def view_video(request):
     try:
         res = subprocess.run([ffmpeg_path] + in_args + ['-t', '0', '-f', 'null', '-'],
                              capture_output=True, check=True)
-        match = re.search(': Video: (\\w+) .+, (\\d+) fps,', res.stderr.decode('utf-8'))
+        match = re.search(': Video: (\\w+) .+, (\\d+) fps,', res.stderr.decode(*ENCODE_ARGS))
         if match:
             base_fps = float(match.group(2))
             if match.group(1) == 'vp9':
@@ -85,17 +90,29 @@ async def view_video(request):
                 in_args = ['-c:v', 'libvpx-vp9'] + in_args
     except subprocess.CalledProcessError as e:
         print("An error occurred in the ffmpeg prepass:\n" \
-                + e.stderr.decode("utf-8"))
-    args = [ffmpeg_path, "-v", "error"] + in_args
+                + e.stderr.decode(*ENCODE_ARGS))
     vfilters = []
     target_rate = float(query.get('force_rate', 0)) or base_fps
     modified_rate = target_rate / float(query.get('select_every_nth',1))
-    if int(query.get('skip_first_frames', 0)) > 0:
-        skip = float(query.get('skip_first_frames'))/target_rate
-        if skip > 1/modified_rate:
-            skip += 1/modified_rate
-            pass
-        args += ["-ss", str(skip)]
+    start_time = 0
+    if 'start_time' in query:
+        start_time = float(query['start_time'])
+    elif int(query.get('skip_first_frames', 0)) > 0:
+        start_time = float(query.get('skip_first_frames'))/target_rate
+        if start_time > 1/modified_rate:
+            start_time += 1/modified_rate
+    if start_time > 0:
+        if start_time > 4:
+            post_seek = ['-ss', '4']
+            pre_seek = ['-ss', str(start_time - 4)]
+        else:
+            post_seek = ['-ss', str(start_time)]
+            pre_seek = []
+    else:
+        pre_seek = []
+        post_seek = []
+
+    args = [ffmpeg_path, "-v", "error"] + pre_seek + in_args + post_seek
     if int(query.get('force_rate',0)) != 0:
         args += ['-r', str(modified_rate)]
     if query.get('force_size','Disabled') != "Disabled":
@@ -125,26 +142,30 @@ async def view_video(request):
                 resp.content_type = 'video/webm'
                 resp.headers["Content-Disposition"] = f"filename=\"{filename}\""
                 await resp.prepare(request)
+                await asyncio.sleep(.1)
                 while True:
-                    bytes_read = proc.stdout.read()
+                    bytes_read = proc.stdout.read(2**20)
+                    delay = asyncio.create_task(asyncio.sleep(.1))
                     if bytes_read is None:
                         #TODO: check for timeout here
-                        time.sleep(.1)
+                        await delay
                         continue
                     if len(bytes_read) == 0:
                         break
-                    await resp.write(bytes_read)
-            except ConnectionResetError as e:
-                #Kill ffmpeg before stdout closes
-                proc.kill()
-            except ConnectionError as e:
-                #Kill ffmpeg before stdout closes
+                    await asyncio.gather(resp.write(bytes_read), delay)
+                #Of dubious value given frequency of kill calls, but more correct
+                proc.wait()
+            except (ConnectionResetError, ConnectionError) as e:
+                pass
+            finally:
+                #Kill ffmpeg before the pipe is closed
                 proc.kill()
 
     except BrokenPipeError as e:
         pass
     return resp
 
+@server.PromptServer.instance.routes.get("/vhs/getpath")
 @server.PromptServer.instance.routes.get("/getpath")
 async def get_path(request):
     query = request.rel_url.query
