@@ -1643,7 +1643,7 @@ function drawAnnotated(ctx, node, widget_width, y, H) {
       ctx.fill()
     }
     let freeWidth = widget_width - (40 + margin * 2 + 20)
-    let [valueText, valueWidth] = fitText(ctx, this.displayValue(), freeWidth)
+    let [valueText, valueWidth] = fitText(ctx, (this.displayValue?.() ?? ""), freeWidth)
     freeWidth -= valueWidth
 
     ctx.textAlign = 'left'
@@ -1753,13 +1753,12 @@ function mouseAnnotated(event, [x, y], node) {
                     d_callback(input.value)
                     dialog.close()
                     node?.graph?.setDirtyCanvas(true);
-                    let i=0
-                    for (;i<node.widgets.length;i++) {
-                        if (node.widgets[i] == this) {
-                            break
-                        }
-                    }
-                    if (node.widgets[++i]?.type == "VHS.ANNOTATED") {//restrict to annotatedNUmbers
+                    let i = node.widgets.findIndex((w) => w == this)
+                    if (e.shiftKey)
+                        i--
+                    else
+                        i++
+                    if (node.widgets[i]?.type == "VHS.ANNOTATED") {//restrict to annotatedNUmbers
                         node.widgets[i]?.mouse(event, [x, y+24], node)
                     }
                 }
