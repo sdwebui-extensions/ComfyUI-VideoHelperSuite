@@ -26,7 +26,7 @@ from .utils import ffmpeg_path, get_audio, hash_path, validate_path, requeue_wor
         imageOrLatent, BIGMAX, merge_filter_args, ENCODE_ARGS, floatOrInt, cached, \
         ContainsAll
 from comfy.utils import ProgressBar
-from dist_utils import args, tensor_chunk, all_gather, all_all, all_all_async, conv3d_p2pop, conv2d_p2pop, tensor_boradcast, tensor_chunk_send, run_node_dist
+from dist_utils import args as dist_args
 
 folder_paths.folder_names_and_paths["VHS_video_formats"] = (
     [
@@ -304,7 +304,7 @@ class VideoCombine:
 
         if isinstance(images, torch.Tensor) and images.size(0) == 0:
             return ((save_output, []),)
-        if args.world_size > 1 and args.rank>0:
+        if dist_args.world_size > 1 and dist_args.rank>0:
             return ((save_output, []),)
         num_frames = len(images)
         pbar = ProgressBar(num_frames)
