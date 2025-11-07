@@ -18,6 +18,8 @@ from .utils import BIGMAX, DIMMAX, calculate_file_hash, get_sorted_dir_files_fro
         lazy_get_audio, hash_path, validate_path, strip_path, try_download_video,  \
         is_url, imageOrLatent, ffmpeg_path, ENCODE_ARGS, floatOrInt
 
+from dist_utils import args, tensor_chunk, all_gather, all_all, all_all_async, conv3d_p2pop, conv2d_p2pop, tensor_boradcast, tensor_chunk_send, run_node_dist
+import json
 
 video_extensions = ['webm', 'mp4', 'mkv', 'gif', 'mov']
 
@@ -401,6 +403,8 @@ def load_video(meta_batch=None, unique_id=None, memory_limit_mb=None, vae=None,
     #Setup lambda for lazy audio capture
     audio = lazy_get_audio(kwargs['video'], start_time, kwargs['frame_load_cap']*target_frame_time)
     #Adjust target_frame_time for select_every_nth
+    if not run_node_dist:
+        images = images[:100]
     video_info = {
         "source_fps": fps,
         "source_frame_count": total_frames,
@@ -413,6 +417,13 @@ def load_video(meta_batch=None, unique_id=None, memory_limit_mb=None, vae=None,
         "loaded_width": new_width,
         "loaded_height": new_height,
     }
+    if args.world_size>1:
+        torch.distributed.barrier()
+        if vae is None:
+            return (images, len(images), audio, video_info)
+        else:
+            return ({"samples": images}, len(images), audio, video_info)
+
     if vae is None:
         return (images, len(images), audio, video_info)
     else:
