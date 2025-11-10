@@ -20,6 +20,7 @@ from .utils import BIGMAX, DIMMAX, calculate_file_hash, get_sorted_dir_files_fro
 
 from dist_utils import args, tensor_chunk, all_gather, all_all, all_all_async, conv3d_p2pop, conv2d_p2pop, tensor_boradcast, tensor_chunk_send, run_node_dist
 import json
+import gc
 
 video_extensions = ['webm', 'mp4', 'mkv', 'gif', 'mov']
 
@@ -405,6 +406,7 @@ def load_video(meta_batch=None, unique_id=None, memory_limit_mb=None, vae=None,
     #Adjust target_frame_time for select_every_nth
     if not run_node_dist:
         images = images[:100]
+        gc.collect()
     video_info = {
         "source_fps": fps,
         "source_frame_count": total_frames,
