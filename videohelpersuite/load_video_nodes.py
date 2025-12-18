@@ -80,6 +80,8 @@ def target_size(width, height, custom_width, custom_height, downscale_ratio=8) -
 def cv_frame_generator(video, force_rate, frame_load_cap, skip_first_frames,
                        select_every_nth, meta_batch=None, unique_id=None):
     if not run_node_dist:
+        if frame_load_cap < 1:
+            frame_load_cap = 100
         frame_load_cap = min(frame_load_cap, 100)
     video_cap = cv2.VideoCapture(video)
     if not video_cap.isOpened() or not video_cap.grab():
@@ -176,6 +178,8 @@ def ffmpeg_frame_generator(video, force_rate, frame_load_cap, start_time,
                            custom_width, custom_height, downscale_ratio=8,
                            meta_batch=None, unique_id=None):
     if not run_node_dist:
+        if frame_load_cap < 1:
+            frame_load_cap = 100
         frame_load_cap = min(frame_load_cap, 100)
     args_input = ["-i", video]
     args_dummy = [ffmpeg_path] + args_input +['-c', 'copy', '-frames:v', '1', "-f", "null", "-"]
